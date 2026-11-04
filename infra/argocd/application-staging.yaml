@@ -1,0 +1,18 @@
+# Argo CD watches this repo and keeps the cluster equal to infra/k8s/overlays/staging (GitOps).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apu-scoring-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/abdelaalimouid/apu-guard.git
+    targetRevision: main
+    path: infra/k8s/overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apu-staging
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
