@@ -1,0 +1,7 @@
+data/
+.venv/
+.git/
+notebooks/
+paper/
+**/__pycache__/
+*.parquet

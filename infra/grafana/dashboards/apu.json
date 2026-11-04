@@ -1,0 +1,548 @@
+{
+  "uid": "apu-main",
+  "title": "APU guard: metro air compressor",
+  "tags": [
+    "apu",
+    "mlops"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "10s",
+  "editable": false,
+  "time": {
+    "from": "2020-02-01T00:00:00.000Z",
+    "to": "2020-09-01T00:00:00.000Z"
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Failure reports",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "apu-pg"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "target": {
+          "refId": "Anno",
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT report_time AS time, 'Failure ' || id || ': ' || label AS text FROM failures WHERE $__timeFilter(report_time)"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Windows stored",
+      "description": "10-minute feature windows written by the streaming job",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT count(*) AS windows FROM features"
+        }
+      ],
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Windows in the last minute",
+      "description": "Is the pipeline live? Counts windows the stream wrote in the last minute of wall-clock time",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT count(*) AS windows FROM features WHERE ingested_at > now() - interval '1 minute'"
+        }
+      ],
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Champion model",
+      "description": "Model version from the MLflow registry that produced the latest scores",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT COALESCE(max(model_version), 'none') AS version FROM scores"
+        }
+      ],
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Alarm windows",
+      "description": "Windows in alarm in the selected time range (3 anomalous windows in a row)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT count(*) FILTER (WHERE alarm) AS alarms FROM alarms WHERE $__timeFilter(window_start)"
+        }
+      ],
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Panel pressure TP3 (bar)",
+      "description": "Pressure of the pneumatic panel per 10-minute window. Red line: the 7 bar low-pressure alarm.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "spanNulls": false,
+            "showPoints": "never",
+            "fillOpacity": 5,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 7
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT window_start AS time, tp3_min AS \"min\", tp3_mean AS \"mean\", tp3_max AS \"max\" FROM features WHERE $__timeFilter(window_start) ORDER BY 1"
+        }
+      ],
+      "id": 5
+    },
+    {
+      "type": "timeseries",
+      "title": "Load share (duty rule: alarm above 0.5 over one hour)",
+      "description": "Share of time the compressor pumps air. A leak makes it work more.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "spanNulls": false,
+            "showPoints": "never",
+            "fillOpacity": 5,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT window_start AS time, load_share AS \"10 min\", avg(load_share) OVER (ORDER BY window_start ROWS BETWEEN 5 PRECEDING AND CURRENT ROW) AS \"1 h\" FROM features WHERE $__timeFilter(window_start) ORDER BY 1"
+        }
+      ],
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "Anomaly score (PCA reconstruction error) and threshold",
+      "description": "Score of the champion model. Above the threshold = anomalous window.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "spanNulls": false,
+            "showPoints": "never",
+            "fillOpacity": 5
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT window_start AS time, score, threshold FROM scores WHERE $__timeFilter(window_start) ORDER BY 1"
+        }
+      ],
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Alarms and sensor faults",
+      "description": "1 = alarm (30 min anomalous). 0.5 = frozen pressure sensor (not counted as an anomaly).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "spanNulls": false,
+            "showPoints": "never",
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT window_start AS time, CASE WHEN alarm THEN 1 ELSE 0 END AS alarm, CASE WHEN sensor_fault THEN 0.5 ELSE 0 END AS \"frozen TP3\" FROM alarms WHERE $__timeFilter(window_start) ORDER BY 1"
+        }
+      ],
+      "id": 8
+    },
+    {
+      "type": "timeseries",
+      "title": "Data coverage (rows per window, 60 = complete)",
+      "description": "Recording gaps (car switched off) show as missing or short windows.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "spanNulls": false,
+            "showPoints": "never",
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT window_start AS time, n_rows AS rows FROM features WHERE $__timeFilter(window_start) ORDER BY 1"
+        }
+      ],
+      "id": 9
+    },
+    {
+      "type": "timeseries",
+      "title": "Oil temperature (°C)",
+      "description": "Normal seasonal drift: higher in summer.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "apu-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "spanNulls": false,
+            "showPoints": "never",
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "apu-pg"
+          },
+          "editorMode": "code",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT window_start AS time, oil_temp_mean AS \"oil\" FROM features WHERE $__timeFilter(window_start) ORDER BY 1"
+        }
+      ],
+      "id": 10
+    }
+  ]
+}

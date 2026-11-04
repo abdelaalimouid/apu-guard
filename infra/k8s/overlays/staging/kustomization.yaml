@@ -1,0 +1,11 @@
+# Staging: what Argo CD deploys. Promoting to prod = a reviewed commit that copies the tag to overlays/prod.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apu-staging
+resources:
+  - ../../base
+images:
+  - name: apu-guard-serving
+    newTag: "0.1.0"
+labels:
+  - pairs: {env: staging}

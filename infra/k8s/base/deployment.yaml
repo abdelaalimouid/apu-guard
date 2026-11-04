@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apu-scoring
+  labels: {app: apu-scoring}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: apu-scoring}
+  template:
+    metadata:
+      labels: {app: apu-scoring}
+    spec:
+      containers:
+        - name: api
+          image: apu-guard-serving:0.1.0
+          imagePullPolicy: Never          # loaded into minikube with `minikube image load`
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MLFLOW_TRACKING_URI   # MLflow runs in Docker Compose on the Mac
+              value: http://host.minikube.internal:5050
+            - name: APU_MODEL_NAME
+              value: apu-anomaly
+          readinessProbe:                 # no champion model = no traffic
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /live, port: 8000}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 512Mi}

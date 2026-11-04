@@ -1,20 +1,20 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
-
-# Virtual environments
-.venv
+.venv/
+.ipynb_checkpoints/
+.pytest_cache/
 
 # the dataset is downloaded by scripts/get_data.sh, never committed
 data/
-# Python
-.ipynb_checkpoints/
+# papers behind paywalls stay local
+paper/refs/
 # experiment outputs
 mlruns/
 *.parquet
+*.log
 .DS_Store
-paper/refs/

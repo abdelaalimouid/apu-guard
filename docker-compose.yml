@@ -1,0 +1,209 @@
+# apu-guard: streaming failure detection for a metro air compressor (MetroPT-3)
+#
+#   make up        start the platform (HDFS, Kafka, Spark, Postgres, object store, MLflow, Grafana)
+#   make airflow   start Airflow too (only needed for training; it uses ~1.5 GB)
+#   make down      stop everything (volumes are kept; `docker compose down -v` wipes them)
+#
+# Sized for Docker Desktop with 8 GB. Passwords below are local-only defaults.
+name: apu
+
+x-hadoop: &hadoop
+  image: apu/hadoop:3.4.3
+  build: ./infra/hadoop          # the professor's multi-arch Hadoop image (works on Apple Silicon)
+  restart: unless-stopped
+
+x-spark-env: &spark-env
+  PYTHONPATH: /opt/apu/src
+  KAFKA_BOOTSTRAP: broker:29092
+  APU_POSTGRES_DSN: postgresql://apu:apu@postgres:5432/apu
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+
+services:
+  # ---------- distributed storage: HDFS (1 NameNode, 2 DataNodes, replication 2) ----------
+  namenode:
+    <<: *hadoop
+    hostname: namenode
+    command: ["namenode"]
+    environment:
+      HDFS_NAMENODE_OPTS: "-Xmx256m"
+    ports:
+      - "9870:9870"   # NameNode web UI
+    volumes:
+      - namenode:/hadoop/dfs/name
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9870/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  datanode1:
+    <<: *hadoop
+    hostname: datanode1
+    command: ["datanode"]
+    environment:
+      HDFS_DATANODE_OPTS: "-Xmx160m"
+    volumes:
+      - datanode1:/hadoop/dfs/data
+    depends_on: [namenode]
+
+  datanode2:
+    <<: *hadoop
+    hostname: datanode2
+    command: ["datanode"]
+    environment:
+      HDFS_DATANODE_OPTS: "-Xmx160m"
+    volumes:
+      - datanode2:/hadoop/dfs/data
+    depends_on: [namenode]
+
+  # ---------- message broker: Kafka in KRaft mode (no ZooKeeper) ----------
+  broker:
+    image: apache/kafka:4.3.2
+    hostname: broker
+    restart: unless-stopped
+    ports:
+      - "9092:9092"   # for programs on the Mac (the producer); containers use broker:29092
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_HEAP_OPTS: "-Xmx384m -Xms384m"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+  # ---------- stream processing: Spark standalone (1 master, 1 worker) ----------
+  spark-master:
+    image: apu/spark:4.2.1
+    build: ./infra/spark
+    hostname: spark-master
+    restart: unless-stopped
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
+    environment: *spark-env
+    ports:
+      - "8080:8080"   # master UI
+      - "4040:4040"   # UI of the running streaming job
+    volumes:
+      - ./src:/opt/apu/src:ro
+      - ivy:/tmp/ivy   # cache for the Kafka connector jars
+
+  spark-worker:
+    image: apu/spark:4.2.1
+    build: ./infra/spark
+    hostname: spark-worker
+    restart: unless-stopped
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    environment:
+      <<: *spark-env
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: "1200m"
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./src:/opt/apu/src:ro
+    depends_on: [spark-master]
+
+  # ---------- serving database for the dashboard (+ Airflow and MLflow metadata) ----------
+  postgres:
+    image: postgres:16.15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"   # 5433 on the Mac, in case another Postgres uses 5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 30
+
+  # ---------- S3-compatible object store for model files (MinIO's role) ----------
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.01
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-master.volumeSizeLimitMB=64"]
+    ports:
+      - "8333:8333"
+    volumes:
+      - seaweed:/data
+
+  # ---------- experiment tracking and model registry ----------
+  mlflow:
+    image: apu/mlflow:3.18.0
+    build: ./infra/mlflow
+    restart: unless-stopped
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://seaweedfs:8333
+      MLFLOW_BOTO_CLIENT_ADDRESSING_STYLE: path
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "5050:5000"   # 5050 on the Mac: macOS uses port 5000 for AirPlay
+    depends_on:
+      postgres: {condition: service_healthy}
+      seaweedfs: {condition: service_started}
+
+  # ---------- dashboard ----------
+  grafana:
+    image: grafana/grafana-oss:12.4.3
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/apu.json
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  # ---------- orchestration (started only for training: `make airflow`) ----------
+  airflow:
+    image: apu/airflow:3.3.2
+    build: ./infra/airflow
+    profiles: ["airflow"]
+    command: ["standalone"]
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"   # local demo: no login
+      PYTHONPATH: /opt/apu/src
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      APU_POSTGRES_DSN: postgresql://apu:apu@postgres:5432/apu
+      APU_WORK_DIR: /opt/airflow/work
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags:ro
+      - ./src:/opt/apu/src:ro
+      - airflow-work:/opt/airflow/work
+    depends_on:
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_started}
+
+volumes:
+  namenode:
+  datanode1:
+  datanode2:
+  pgdata:
+  seaweed:
+  ivy:
+  airflow-work:

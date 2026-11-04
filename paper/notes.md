@@ -62,7 +62,12 @@ doi:10.5281/zenodo.23737435. A preprint, not peer reviewed, but pre-registered a
 - **Synthetic leaks** (Kalman filter on the model): leaks growing linearly to 1.2× delivery over 72, 24 or 6 h, or a step. Leaks growing over 24–72 h were warned 10–43 h before the 7 bar alarm. They used **one clean week, 29 Jun – 6 Jul 2020**, as the base for injection; reuse that idea.
 
 **What this means for our paper:**
-- **The drop-the-paper rule cannot trigger.** Its second condition was "every real leak is sudden". Here, failures 1–3 were flagged about 6 days ahead by simple physics rules, so at least some leaks build up over days, which is slow enough for daily or weekly retraining to absorb.
+- **Correction after running notebook 01 (4 Nov 2026).** The "6 days ahead" warnings are not build-ups.
+  - For failure 1, the early alarm is an unrelated 12 h episode on 12 April.
+  - For failure 3, it is failure 2's own episode.
+  - In the plots, the leaks start a few hours before the report: about 7 h, 2 h and 10 h for failures 1–3, while failure 4 ramps up over about 12–20 h.
+  - With about 5.7 false episodes per 1000 h, a noisy rule has about a 60% chance of *some* episode inside any 7-day zone, so "warned 4 of 4" says little.
+  - So condition (b) of the drop rule ("every real leak is sudden") is close to true. The decision now rests on condition (a): whether Wang et al. 2005 already give the gap rule.
 - **Adopt their zones and episode counting** as our evaluation protocol.
 - **Include L1 (the duty rule) as a baseline.** It is simple and catches all four failures.
 - **Use the consumption share as the physics health indicator** for the guard, and its slope before each failure as the fault rate v for RQ2.
@@ -78,9 +83,23 @@ What the abstract and citing papers give:
 
 The labelling and detection definitions need the full text.
 
-## Wang, Kruger & Irwin (2005): closed access
+## Wang, Kruger & Irwin (2005): read pp. 1–3 and 5–7 (PDF from the library)
 
-Abstract: fast moving-window PCA plus an **N-step-ahead horizon** (the model from N steps earlier judges the current sample), which "improves the ability to detect slowly developing drifts". **Not verified:** whether they give a rule for choosing N. This no longer affects the go/no-go decision (see above). It only affects how we word the related work.
+- **The horizon (their Table 3):** the PCA model from N steps earlier judges sample k, with confidence limits from the data that built that model.
+- **They name our problem.** A one-step-ahead model "may adapt to process changes so quickly that abnormal behavior remains undetected", and slow ramps "may be accommodated by model adaptation".
+- **Section 6.3 and Fig. 7 give the rule empirically.** By simulation, they find the smallest horizon N that detects a ramp of slope S, for windows L = 250, 500 and 750. N falls as S rises and as L rises; the lines are least-squares fits, with no formula. They call it "a broad indication of the interrelationship" between L, N and S.
+- **What they don't have:**
+  - a closed form;
+  - the speed-independent ceiling when the spread is re-estimated;
+  - percentile thresholds;
+  - ML detectors;
+  - MLOps retraining schedules;
+  - real failures.
+- **Drop rule:**
+  - condition (a) is partly met: the gap rule exists empirically since 2005;
+  - condition (b) is close to true: MetroPT-3's real leaks start hours before failure.
+
+  The strong paper is gone. A smaller theory note survives (chat, 4 Nov 2026).
 
 ## Sullivan & Jones (2002), Technometrics: closed access
 
