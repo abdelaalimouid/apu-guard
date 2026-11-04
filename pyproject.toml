@@ -1,10 +1,10 @@
 [project]
 name = "apu-guard"
 version = "0.1.0"
-description = "Add your description here"
+description = "A system that watches the air compressor of a Porto metro train, warns before it fails, and keeps itself up to date without going blind."
 readme = "README.md"
 authors = [
-    { name = "abdelaalimouid", email = "a.mouid4509@uca.ac.ma" }
+    { name = "abdelaalimouid", email = "124872587+abdelaalimouid@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [

@@ -12,10 +12,9 @@ wheels/
 # the dataset is downloaded by scripts/get_data.sh, never committed
 data/
 # Python
-.venv/
-__pycache__/
 .ipynb_checkpoints/
 # experiment outputs
 mlruns/
 *.parquet
 .DS_Store
+paper/refs/
