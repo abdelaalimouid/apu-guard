@@ -122,7 +122,7 @@ make k8s-up && make k8s-deploy && make k8s-test # scoring API on Kubernetes
 | Live scoring | 10–18 July replayed at 2000× (62,295 readings in 389 s), every window scored by model v1 as it arrived |
 | Scoring API | normal window → 0.80 (normal); leak-like window → 33.7 (anomaly) |
 | Kubernetes | pod Ready 1/1 in `apu-staging` on minikube; readiness = champion v1 loaded from MLflow on the host |
-| Argo CD | v3.5.6 installed, application registered; it syncs once the repo is readable (public, or a read-only token added in Argo CD) |
+| Argo CD | v3.5.6; application `apu-scoring-staging` Synced and Healthy at commit cc70c6d (the cluster matches Git) |
 
 **Reading these numbers honestly**
 - **No better than the baseline.** The PCA model ties the one-line duty rule, with slightly more false alarms.
