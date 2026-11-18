@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
+  manifests:
+    name: Validate deployment files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker Compose
+        run: docker compose --profile airflow config --quiet
+      - name: Kustomize overlay
+        run: kubectl kustomize infra/k8s/overlays/staging
+      - name: Shell scripts
+        run: shellcheck scripts/get_data.sh infra/hadoop/entrypoint.sh infra/mlflow/start.sh
+
+  image:
+    name: Build scoring image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f infra/serving/Dockerfile -t apu-guard-serving:ci .
